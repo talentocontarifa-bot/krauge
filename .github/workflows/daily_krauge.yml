@@ -1,0 +1,92 @@
+name: Proclamación Diaria Kraugé (κραυγή)
+
+on:
+  schedule:
+    - cron: "30 13 * * *" # Todos los días a las 13:30 UTC (07:30 AM CDMX)
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: "Plataformas a publicar (coma): tiktok,instagram,youtube"
+        required: false
+        default: "tiktok,instagram,youtube"
+
+jobs:
+  proclaim-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Node dependencies
+        run: npm install --no-save axios dotenv form-data
+
+      - name: Generar Video Diario de Kraugé (Versículo del Día + Voz DSP + Render 9:16)
+        env:
+          GEMINI_API: ${{ secrets.GEMINI_API }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: python generate_krauge_video.py
+
+      - name: Publicar en TikTok, Instagram Reels y YouTube Shorts
+        env:
+          PUBLISH_PLATFORMS: ${{ github.event.inputs.platforms || 'tiktok,instagram,youtube' }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          INSTAGRAM_ACCOUNT_ID: ${{ secrets.INSTAGRAM_ACCOUNT_ID }}
+          META_PAGE_ACCESS_TOKEN: ${{ secrets.META_PAGE_ACCESS_TOKEN }}
+          META_PAGE_ID: ${{ secrets.META_PAGE_ID }}
+          TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
+          TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+          TIKTOK_REDIRECT_URI: ${{ secrets.TIKTOK_REDIRECT_URI }}
+          TIKTOK_ACCESS_TOKEN: ${{ secrets.TIKTOK_ACCESS_TOKEN }}
+          TIKTOK_REFRESH_TOKEN: ${{ secrets.TIKTOK_REFRESH_TOKEN }}
+          TIKTOK_OPEN_ID: ${{ secrets.TIKTOK_OPEN_ID }}
+          GH_SECRETS_PAT: ${{ secrets.GH_SECRETS_PAT }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          YOUTUBE_PRIVACY_STATUS: ${{ secrets.YOUTUBE_PRIVACY_STATUS }}
+        run: node publish_video.js
+
+      - name: Guardar Ciclo en el Repositorio (krauge_state.json)
+        if: always()
+        run: |
+          git config --global user.name "krauge-bot"
+          git config --global user.email "krauge-bot@users.noreply.github.com"
+          if [ -f krauge_state.json ]; then
+            git add krauge_state.json
+            git diff --staged --quiet || (git commit -m "chore(cycle): actualizar ciclo de despertar de Kraugé [skip ci]" && git pull --rebase && git push)
+          fi
+
+      - name: Subir Artefacto de Video
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: krauge-video-cycle-${{ github.run_number }}
+          path: |
+            out/krauge_video.mp4
+            out/publish_results.json
+            krauge_data.json
+          if-no-files-found: ignore
+          retention-days: 5

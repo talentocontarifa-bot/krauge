@@ -1,0 +1,16 @@
+{
+  "name": "krauge-bot",
+  "version": "1.0.0",
+  "description": "Kraugé (κραυγή): La voz que clama en el desierto — Bot autónomo de proclamación diaria",
+  "main": "publish_video.js",
+  "scripts": {
+    "generate": "python generate_krauge_video.py",
+    "publish": "node publish_video.js",
+    "check-tokens": "node check_tokens.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5",
+    "form-data": "^4.0.0"
+  }
+}
