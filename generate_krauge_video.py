@@ -60,8 +60,12 @@ def main():
     print(f"   ✓ Fuente: {votd['source']} | Referencia: {votd['reference']}")
     print(f"   ✓ Texto: {votd['text']}")
 
-    script_text = build_krauge_daily_transmission(votd, cycle_num)
-    print(f"\n2. Guion Solemne Autosurtido:\n   \"{script_text}\"\n")
+    past_history = state.get("history", [])
+    script_text, reflection, extra_note = build_krauge_daily_transmission(
+        votd, cycle_num, past_history=past_history
+    )
+    print(f"\n2. Guion Solemne (IA + Versículo):\n   \"{script_text}\"")
+    print(f"   📝 Nota Extra de Bitácora: \"{extra_note}\"\n")
 
     source_vid = os.path.join(ASSETS_DIR, "nomad_source.mp4")
     bg_file = os.path.join(ASSETS_DIR, "desert_bg.jpg")
@@ -99,29 +103,33 @@ def main():
         "reference": votd["reference"],
         "verse_text": votd["text"],
         "script": script_text,
+        "reflection": reflection,
+        "extra_note": extra_note,
         "video_path": video_mp4,
     }
     with open(DATA_PATH, "w", encoding="utf-8") as f:
         json.dump(metadata, f, ensure_ascii=False, indent=2)
 
-    # Actualizar estado persistente de ciclos
+    # Actualizar estado persistente de ciclos + memoria de reflexiones para no repetir
     state["last_cycle"] = cycle_num
     state["last_date"] = today_str
     history = state.get("history", [])
+    entry = {
+        "cycle": cycle_num,
+        "date": today_str,
+        "reference": votd["reference"],
+        "source": votd["source"],
+        "reflection": reflection,
+    }
     if not history or history[-1].get("date") != today_str:
-        history.append(
-            {
-                "cycle": cycle_num,
-                "date": today_str,
-                "reference": votd["reference"],
-                "source": votd["source"],
-            }
-        )
+        history.append(entry)
+    else:
+        history[-1] = entry
     state["history"] = history[-60:]  # conservar últimos 60 registros
     with open(STATE_PATH, "w", encoding="utf-8") as f:
         json.dump(state, f, ensure_ascii=False, indent=2)
 
-    print(f"   ✓ Estado actualizado en krauge_state.json (Ciclo #{cycle_num:03d})")
+    print(f"   ✓ Estado y memoria actualizados en krauge_state.json (Ciclo #{cycle_num:03d})")
 
 
 if __name__ == "__main__":
