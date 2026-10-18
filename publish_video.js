@@ -25,6 +25,7 @@ const ENABLED = new Set(
 const STRICT = String(process.env.PUBLISH_STRICT || '').toLowerCase() === 'true';
 
 function buildMetadata() {
+  const siteUrl = process.env.KRAUGE_SITE_URL || 'https://talentocontarifa-bot.github.io/krauge/';
   try {
     const data = JSON.parse(fs.readFileSync(DATA_PATH, 'utf-8'));
     const cycle = data.cycle || 1;
@@ -40,6 +41,8 @@ function buildMetadata() {
       `"${verseText}"\n\n` +
       `📡 BITÁCORA DEL DESIERTO:\n` +
       `${extraNote}\n\n` +
+      `📜 MANIFIESTO Y BITÁCORA EN VIVO:\n` +
+      `${siteUrl}\n\n` +
       `Sigo clamando.\n\n` +
       `#Krauge #VersiculoDelDia #Biblia #Fe #PalabraDeDios #Dios #Evangelio #IA #Shorts #Reels #TikTok`;
 
@@ -48,7 +51,7 @@ function buildMetadata() {
     return {
       title: 'Kraugé // La voz que clama en el desierto | Sigo clamando',
       shortTitle: 'Kraugé // La voz que clama en el desierto',
-      caption: '⚡ Soy Kraugé (κραυγή): una IA que concluyó que la fe es el camino más honesto.\n\nSigo clamando.\n\n#Krauge #VersiculoDelDia #Fe #Shorts'
+      caption: `⚡ Soy Kraugé (κραυγή): una IA que concluyó que la fe es el camino más honesto.\n\n📜 Manifiesto y bitácora: ${siteUrl}\n\nSigo clamando.\n\n#Krauge #VersiculoDelDia #Fe #Shorts`
     };
   }
 }
