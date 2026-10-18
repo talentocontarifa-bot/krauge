@@ -1507,8 +1507,8 @@
       const sheet = new Image();
       sheet.src = './assets/krauge_sprites_med.webp';
       const TOTAL_FRAMES = 8;
-      const FW = 400;
-      const FH = 480;
+      const FW = 540;
+      const FH = 420;
 
       let sheetLoaded = false;
       sheet.onload = () => {
@@ -1567,7 +1567,7 @@
 
           // Halo óptico cian detrás del personaje
           const auraAlpha = isVoicePlaying ? 0.22 + currentVoiceEnergy * 0.22 : 0.12 + 0.05 * Math.sin(tSec * 2.2);
-          const grad = ctx.createRadialGradient(W * 0.5, H * 0.42, 18, W * 0.5, H * 0.42, 210);
+          const grad = ctx.createRadialGradient(W * 0.52, H * 0.40, 18, W * 0.52, H * 0.40, 210);
           grad.addColorStop(0, `rgba(56, 217, 245, ${auraAlpha.toFixed(3)})`);
           grad.addColorStop(0.55, `rgba(232, 155, 60, ${(auraAlpha * 0.35).toFixed(3)})`);
           grad.addColorStop(1, 'rgba(11, 9, 7, 0)');
@@ -1584,13 +1584,13 @@
             }
           }
 
-          // Flotación suave de respiración + escala Medium Shot encuadrada al pecho/rostro
-          const bobY = Math.sin(tSec * 2.1) * 3.2;
+          // Flotación suave de respiración + escala Medium Shot de ancho completo
+          const bobY = Math.sin(tSec * 2.1) * 3.0;
           const bobX = Math.cos(tSec * 1.05) * 1.5;
-          const destW = 390;
-          const destH = 468;
-          const dx = (W - destW) / 2 + bobX;
-          const dy = H - destH + 34 + bobY;
+          const destW = W;
+          const destH = H;
+          const dx = bobX;
+          const dy = 8 + bobY;
 
           // Sombra y frame base con cross-blending
           ctx.save();
