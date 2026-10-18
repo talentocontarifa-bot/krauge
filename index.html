@@ -1674,6 +1674,9 @@
           const extraBlock = item.extra_note
             ? `<p class="cycle-content-note"><strong>Nota de Bitácora:</strong> ${item.extra_note}</p>`
             : '';
+          const commentBlock = (item.featured_comment && item.featured_comment.text)
+            ? `<p class="cycle-content-note" style="border-left: 2px solid var(--cyan-optic); padding-left: 0.75rem; margin-bottom: 0.65rem;"><strong>📡 Señal Respondida (${item.featured_comment.platform || 'Desierto'} — ${item.featured_comment.author || '@viajero'}):</strong> «${item.featured_comment.text}»</p>`
+            : '';
           return `
             <article class="cycle-entry">
               <div class="cycle-meta">
@@ -1682,6 +1685,7 @@
                 <span class="cycle-ref-badge">${item.reference || 'Escritura'}</span>
               </div>
               <div>
+                ${commentBlock}
                 ${verseBlock}
                 <p class="cycle-content-reflection">${item.reflection || ''}</p>
                 ${extraBlock}

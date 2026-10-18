@@ -7,6 +7,8 @@ from toon_packager import (
     get_awakening_cycle,
     get_cdmx_today,
     build_krauge_daily_transmission,
+    fetch_krauge_comments,
+    select_best_comment,
 )
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -26,7 +28,13 @@ def resolve_and_update_cycle(genesis_date_str="2026-10-16"):
     3) GITHUB_RUN_NUMBER cuando corre en GitHub Actions
     """
     cal_cycle = get_awakening_cycle(genesis_date_str)
-    state = {"last_cycle": 0, "last_date": "", "genesis_date": genesis_date_str, "history": []}
+    state = {
+        "last_cycle": 0,
+        "last_date": "",
+        "genesis_date": genesis_date_str,
+        "answered_comment_ids": [],
+        "history": [],
+    }
 
     if os.path.exists(STATE_PATH):
         try:
@@ -61,10 +69,22 @@ def main():
     print(f"   ✓ Fuente: {votd['source']} | Referencia: {votd['reference']}")
     print(f"   ✓ Texto: {votd['text']}")
 
-    script_text, reflection, extra_note = build_krauge_daily_transmission(
-        votd, cycle_num, past_history=past_history
+    print("\n1B. Buscando comentarios de la audiencia en ciclos anteriores (Instagram / YouTube)...")
+    candidate_comments = fetch_krauge_comments(state)
+    featured_comment = select_best_comment(candidate_comments, votd=votd)
+    if featured_comment:
+        print(
+            f"   ✓ Comentario elegido para abrir el video: {featured_comment.get('author')} "
+            f"({featured_comment.get('platform')}, +{featured_comment.get('likes', 0)} reacciones): "
+            f"\"{featured_comment.get('text')}\""
+        )
+    else:
+        print("   ℹ️ Sin comentarios nuevos pendientes por responder; apertura solemne estándar.")
+
+    script_text, reflection, extra_note, intro_word_count = build_krauge_daily_transmission(
+        votd, cycle_num, past_history=past_history, featured_comment=featured_comment
     )
-    print(f"\n2. Guion Solemne (IA + Versículo):\n   \"{script_text}\"")
+    print(f"\n2. Guion Solemne (IA + Apertura Comentario + Versículo + Lore CTA):\n   \"{script_text}\"")
     print(f"   📝 Nota Extra de Bitácora: \"{extra_note}\"\n")
 
     source_vid = os.path.join(ASSETS_DIR, "nomad_source.mp4")
@@ -107,6 +127,8 @@ def main():
         votd_ref=f"CICLO #{cycle_num:03d} // {votd['reference']}",
         output_mp4_path=video_mp4,
         focus_center_x=315,
+        featured_comment=featured_comment,
+        comment_word_limit=intro_word_count,
     )
     print(f"   ✓ Video listo: {video_mp4}")
 
@@ -120,14 +142,23 @@ def main():
         "script": script_text,
         "reflection": reflection,
         "extra_note": extra_note,
+        "featured_comment": featured_comment,
         "video_path": video_mp4,
     }
     with open(DATA_PATH, "w", encoding="utf-8") as f:
         json.dump(metadata, f, ensure_ascii=False, indent=2)
 
-    # Actualizar estado persistente de ciclos + memoria de reflexiones para no repetir y alimentar la web
+    # Actualizar estado persistente de ciclos + memoria de reflexiones y comentarios respondidos
     state["last_cycle"] = cycle_num
     state["last_date"] = today_str
+    if "pending_manual_comment" in state:
+        state.pop("pending_manual_comment", None)
+    if featured_comment and featured_comment.get("id"):
+        ans_list = state.get("answered_comment_ids", [])
+        if featured_comment["id"] not in ans_list:
+            ans_list.append(featured_comment["id"])
+        state["answered_comment_ids"] = ans_list[-200:]
+
     history = state.get("history", [])
     entry = {
         "cycle": cycle_num,
@@ -138,9 +169,21 @@ def main():
         "reflection": reflection,
         "extra_note": extra_note,
     }
+    if featured_comment:
+        entry["featured_comment"] = {
+            "author": featured_comment.get("author"),
+            "platform": featured_comment.get("platform"),
+            "text": featured_comment.get("text"),
+            "likes": featured_comment.get("likes", 0),
+        }
     if not history or history[-1].get("cycle") != cycle_num:
         history.append(entry)
     else:
+        # Conservar IDs de publicación si ya existían en este ciclo
+        prev_entry = history[-1]
+        for k in ("youtube_video_id", "instagram_media_id", "tiktok_publish_id"):
+            if prev_entry.get(k) and k not in entry:
+                entry[k] = prev_entry[k]
         history[-1] = entry
     state["history"] = history[-60:]  # conservar últimos 60 registros
     with open(STATE_PATH, "w", encoding="utf-8") as f:
