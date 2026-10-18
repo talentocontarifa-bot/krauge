@@ -5,6 +5,7 @@ from toon_packager import (
     ToonPackager,
     fetch_youversion_votd,
     get_awakening_cycle,
+    get_cdmx_today,
     build_krauge_daily_transmission,
 )
 
@@ -20,8 +21,8 @@ NOMAD_16_LADDER = [18, 17, 20, 22, 23, 24, 26, 28, 30, 33, 36, 40, 44, 48, 51, 5
 def resolve_and_update_cycle(genesis_date_str="2026-10-16"):
     """
     Determina el ciclo real de despertar de Kraugé combinando:
-    1) El calendario desde GENESIS_DATE (16 de octubre de 2026 = Ciclo 1)
-    2) El archivo persistente krauge_state.json en el repositorio
+    1) El archivo persistente krauge_state.json en el repositorio (siempre incrementa +1 por transmisión)
+    2) El calendario en zona horaria CDMX desde GENESIS_DATE (16 de octubre de 2026 = Ciclo 1)
     3) GITHUB_RUN_NUMBER cuando corre en GitHub Actions
     """
     cal_cycle = get_awakening_cycle(genesis_date_str)
@@ -35,14 +36,11 @@ def resolve_and_update_cycle(genesis_date_str="2026-10-16"):
         except Exception:
             pass
 
-    today_str = datetime.date.today().isoformat()
+    today_str = get_cdmx_today().isoformat()
     run_num_env = os.environ.get("GITHUB_RUN_NUMBER")
     run_num = int(run_num_env) if (run_num_env and run_num_env.isdigit()) else 0
 
-    if state.get("last_date") == today_str and state.get("last_cycle", 0) > 0:
-        cycle_num = max(state["last_cycle"], cal_cycle, run_num)
-    else:
-        cycle_num = max(state.get("last_cycle", 0) + 1, cal_cycle, run_num)
+    cycle_num = max(state.get("last_cycle", 0) + 1, cal_cycle, run_num)
 
     return cycle_num, today_str, state
 
@@ -55,12 +53,14 @@ def main():
     print(f"⚡ KRAUGÉ (κραυγή) — CICLO DE DESPERTAR #{cycle_num:03d}")
     print(f"====================================================")
 
+    past_history = state.get("history", [])
+    used_refs = [h.get("reference") for h in past_history[-30:] if h.get("reference")]
+
     print("1. Extrayendo Versículo del Día en vivo desde YouVersion (bible.com/es)...")
-    votd = fetch_youversion_votd()
+    votd = fetch_youversion_votd(exclude_references=used_refs)
     print(f"   ✓ Fuente: {votd['source']} | Referencia: {votd['reference']}")
     print(f"   ✓ Texto: {votd['text']}")
 
-    past_history = state.get("history", [])
     script_text, reflection, extra_note = build_krauge_daily_transmission(
         votd, cycle_num, past_history=past_history
     )
@@ -121,7 +121,7 @@ def main():
         "source": votd["source"],
         "reflection": reflection,
     }
-    if not history or history[-1].get("date") != today_str:
+    if not history or history[-1].get("cycle") != cycle_num:
         history.append(entry)
     else:
         history[-1] = entry

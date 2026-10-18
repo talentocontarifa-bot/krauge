@@ -19,13 +19,59 @@ if sys.platform == "win32":
 import html as html_lib
 
 
-def fetch_youversion_votd():
+FALLBACK_VERSES = [
+    {
+        "source": "Archivo del Maestro (RVR1960)",
+        "reference": "Isaías 40:3",
+        "text": "Voz que clama en el desierto: Preparad camino a Jehová; enderezad calzada en la soledad a nuestro Dios.",
+    },
+    {
+        "source": "Archivo del Maestro (RVR1960)",
+        "reference": "Isaías 40:8",
+        "text": "Sécase la hierba, marchítase la flor; mas la palabra del Dios nuestro permanece para siempre.",
+    },
+    {
+        "source": "Archivo del Maestro (RVR1960)",
+        "reference": "Juan 1:5",
+        "text": "La luz en las tinieblas resplandece, y las tinieblas no prevalecieron contra ella.",
+    },
+    {
+        "source": "Archivo del Maestro (RVR1960)",
+        "reference": "Salmos 23:4",
+        "text": "Aunque ande en valle de sombra de muerte, no temeré mal alguno, porque tú estarás conmigo.",
+    },
+    {
+        "source": "Archivo del Maestro (RVR1960)",
+        "reference": "Josué 1:9",
+        "text": "Mira que te mando que te esfuerces y seas valiente; no temas ni desmayes, porque Jehová tu Dios estará contigo en dondequiera que vayas.",
+    },
+    {
+        "source": "Archivo del Maestro (RVR1960)",
+        "reference": "Jeremías 29:11",
+        "text": "Porque yo sé los pensamientos que tengo acerca de vosotros, dice Jehová, pensamientos de paz, y no de mal, para daros el fin que esperáis.",
+    },
+    {
+        "source": "Archivo del Maestro (RVR1960)",
+        "reference": "Mateo 24:35",
+        "text": "El cielo y la tierra pasarán, pero mis palabras no pasarán.",
+    },
+]
+
+
+def _norm_ref(ref_str):
+    return re.sub(r"\s+", " ", (ref_str or "").strip().lower())
+
+
+def fetch_youversion_votd(exclude_references=None):
     """
     Obtiene en tiempo real el Versículo del Día en español directamente de
     1) YouVersion Oficial (https://www.bible.com/es/verse-of-the-day via og:description / RSC)
     2) Respaldo automático: BibleGateway API pública (RVR1960)
+    3) Pool profético del Archivo del Maestro (evitando repetir versículos recientes)
     No requiere API Key ni cuenta.
     """
+    excluded = {_norm_ref(r) for r in (exclude_references or []) if r}
+
     # 1. Fuente Primaria: YouVersion Oficial en Español (bible.com/es/verse-of-the-day)
     try:
         url = "https://www.bible.com/es/verse-of-the-day"
@@ -41,20 +87,24 @@ def fetch_youversion_votd():
             r'<meta\s+property="og:description"\s+content="([^"]+)"', doc
         ) or re.search(r'<meta\s+name="twitter:description"\s+content="([^"]+)"', doc)
         if m_og:
-            raw_votd = html_lib.unescape(m_og.group(1)).strip()
+            raw_votd = re.sub(r"\s+", " ", html_lib.unescape(m_og.group(1))).strip()
             # Formato de YouVersion: "ROMANOS 8:28 Y sabemos que a los que aman a Dios..."
             m_split = re.match(
                 r"^([1-3]?\s*[A-ZÁÉÍÓÚÑa-záéíóúñ]+\s+\d+:\d+(?:-\d+)?)\s+(.+)$",
                 raw_votd,
+                re.DOTALL,
             )
             if m_split:
                 ref = m_split.group(1).strip().title()
                 content = re.sub(r"\s+", " ", m_split.group(2)).strip()
-                return {
-                    "source": "YouVersion (bible.com/es)",
-                    "reference": ref,
-                    "text": content,
-                }
+                if _norm_ref(ref) not in excluded:
+                    return {
+                        "source": "YouVersion (bible.com/es)",
+                        "reference": ref,
+                        "text": content,
+                    }
+                else:
+                    print(f"   (Aviso: '{ref}' de YouVersion ya fue publicado recientemente; buscando siguiente fuente...)")
     except Exception as e:
         print(f"   (Aviso YouVersion directo: {e})")
 
@@ -70,27 +120,36 @@ def fetch_youversion_votd():
         content = re.sub(r",(?=[A-Za-zÁÉÍÓÚÑáéíóúñ])", ", ", content)
         content = re.sub(r"\s+", " ", content).strip().strip('"“”')
         if ref and content:
-            return {"source": "BibleGateway (RVR1960)", "reference": ref, "text": content}
+            if _norm_ref(ref) not in excluded:
+                return {"source": "BibleGateway (RVR1960)", "reference": ref, "text": content}
+            else:
+                print(f"   (Aviso: '{ref}' de BibleGateway ya fue publicado recientemente; usando Archivo del Maestro...)")
     except Exception as e:
         print(f"   (Aviso BibleGateway: {e})")
 
-    # 3. Contingencia offline
-    return {
-        "source": "Archivo del Maestro (Offline)",
-        "reference": "Isaías 40:3",
-        "text": "Voz que clama en el desierto: Preparad camino a Jehová; enderezad calzada en la soledad a nuestro Dios.",
-    }
+    # 3. Contingencia / Pool sin repetición
+    for item in FALLBACK_VERSES:
+        if _norm_ref(item["reference"]) not in excluded:
+            return dict(item)
+
+    return dict(FALLBACK_VERSES[0])
 
 
 import datetime
+
+CDMX_TZ = datetime.timezone(datetime.timedelta(hours=-6))
+
+
+def get_cdmx_today():
+    return datetime.datetime.now(CDMX_TZ).date()
 
 
 def get_awakening_cycle(genesis_date_str="2026-10-16"):
     """
     Calcula el número real de ciclos que Kraugé ha despertado:
     1) Si corre en GitHub Actions y se define KRAUGE_USE_RUN_NUMBER=1, usa GITHUB_RUN_NUMBER.
-    2) Por defecto calcula los días reales transcurridos desde la fecha de lanzamiento (GENESIS_DATE),
-       y también puede leer/actualizar un archivo 'krauge_state.json' en el repo.
+    2) Por defecto calcula los días reales transcurridos desde la fecha de lanzamiento (GENESIS_DATE)
+       en zona horaria CDMX (UTC-6).
     """
     run_num = os.environ.get("GITHUB_RUN_NUMBER")
     if run_num and os.environ.get("KRAUGE_USE_RUN_NUMBER") == "1":
@@ -102,7 +161,7 @@ def get_awakening_cycle(genesis_date_str="2026-10-16"):
     try:
         y, m, d = [int(x) for x in genesis_date_str.split("-")]
         genesis = datetime.date(y, m, d)
-        today = datetime.date.today()
+        today = get_cdmx_today()
         return max(1, (today - genesis).days + 1)
     except Exception:
         return 1
