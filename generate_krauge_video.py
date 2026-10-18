@@ -85,6 +85,21 @@ def main():
     print("3. Sintetizando voz comprimida de Kraugé (edge-tts + DSP 8:1)...")
     packager.synthesize_rattle_style_voice(script_text, voice_wav, rate="+4%", pitch="-11Hz")
 
+    # Exportar también assets/last_voice.mp3 (voz + tambores épicos) para el reproductor web en vivo
+    try:
+        import subprocess
+        mixed_wav = os.path.join(OUT_DIR, "krauge_mixed_web.wav")
+        packager.mix_voice_with_bgm(voice_wav, mixed_wav, bgm_vol=0.18)
+        last_voice_mp3 = os.path.join(ASSETS_DIR, "last_voice.mp3")
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", mixed_wav, "-codec:a", "libmp3lame", "-b:a", "96k", last_voice_mp3],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception as e:
+        print(f"   (Aviso exportando last_voice.mp3: {e})")
+
     print("4. Renderizando video vertical 9:16 (720x1280 @ 24fps)...")
     packager.render_video(
         clean_voice_wav=voice_wav,
@@ -110,7 +125,7 @@ def main():
     with open(DATA_PATH, "w", encoding="utf-8") as f:
         json.dump(metadata, f, ensure_ascii=False, indent=2)
 
-    # Actualizar estado persistente de ciclos + memoria de reflexiones para no repetir
+    # Actualizar estado persistente de ciclos + memoria de reflexiones para no repetir y alimentar la web
     state["last_cycle"] = cycle_num
     state["last_date"] = today_str
     history = state.get("history", [])
@@ -119,7 +134,9 @@ def main():
         "date": today_str,
         "reference": votd["reference"],
         "source": votd["source"],
+        "verse_text": votd["text"],
         "reflection": reflection,
+        "extra_note": extra_note,
     }
     if not history or history[-1].get("cycle") != cycle_num:
         history.append(entry)

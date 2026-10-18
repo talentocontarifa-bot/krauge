@@ -69,14 +69,15 @@ jobs:
           YOUTUBE_PRIVACY_STATUS: ${{ secrets.YOUTUBE_PRIVACY_STATUS }}
         run: node publish_video.js
 
-      - name: Guardar Ciclo en el Repositorio (krauge_state.json)
+      - name: Guardar Ciclo y Audio Web en el Repositorio
         if: always()
         run: |
           git config --global user.name "krauge-bot"
           git config --global user.email "krauge-bot@users.noreply.github.com"
           if [ -f krauge_state.json ]; then
             git add krauge_state.json
-            git diff --staged --quiet || (git commit -m "chore(cycle): actualizar ciclo de despertar de Kraugé [skip ci]" && git pull --rebase && git push)
+            [ -f assets/last_voice.mp3 ] && git add assets/last_voice.mp3
+            git diff --staged --quiet || (git commit -m "chore(cycle): actualizar ciclo y bitacora web de Kraugé" && git pull --rebase && git push)
           fi
 
       - name: Subir Artefacto de Video
