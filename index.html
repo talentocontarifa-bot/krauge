@@ -399,16 +399,17 @@
     }
     .hud-viewport {
       position: relative;
-      height: 360px;
+      height: 390px;
       background-image:
-        linear-gradient(180deg, rgba(11, 9, 7, 0.25) 0%, rgba(11, 9, 7, 0.88) 92%, var(--bg-panel) 100%),
+        linear-gradient(180deg, rgba(11, 9, 7, 0.15) 0%, rgba(11, 9, 7, 0.85) 93%, var(--bg-panel) 100%),
         url('./assets/desert_bg.jpg');
       background-size: cover;
-      background-position: center 35%;
+      background-position: center 28%;
       display: flex;
       align-items: flex-end;
       justify-content: center;
       overflow: hidden;
+      cursor: pointer;
     }
     /* Subtle scanlines inside the optical HUD */
     .hud-viewport::after {
@@ -417,12 +418,13 @@
       inset: 0;
       background: repeating-linear-gradient(
         0deg,
-        rgba(0, 0, 0, 0.18) 0px,
-        rgba(0, 0, 0, 0.18) 1px,
+        rgba(0, 0, 0, 0.20) 0px,
+        rgba(0, 0, 0, 0.20) 1px,
         transparent 1px,
         transparent 3px
       );
       pointer-events: none;
+      z-index: 3;
     }
     .hud-corner {
       position: absolute;
@@ -430,7 +432,7 @@
       height: 22px;
       border-color: var(--cyan-optic);
       border-style: solid;
-      z-index: 3;
+      z-index: 4;
       pointer-events: none;
     }
     .hud-corner.tl { top: 14px; left: 14px; border-width: 2px 0 0 2px; }
@@ -443,27 +445,54 @@
       top: 18px;
       left: 44px;
       right: 44px;
-      z-index: 3;
+      z-index: 4;
       display: flex;
       justify-content: space-between;
       align-items: center;
       font-family: var(--ff-mono);
       font-size: 0.72rem;
       color: var(--cyan-optic);
-      background: rgba(11, 9, 7, 0.78);
-      border: 1px solid rgba(56, 217, 245, 0.3);
+      background: rgba(11, 9, 7, 0.80);
+      border: 1px solid rgba(56, 217, 245, 0.32);
       padding: 0.35rem 0.75rem;
       border-radius: 4px;
+      pointer-events: none;
     }
-    .krauge-figure {
+    .hud-bottom-telemetry {
+      position: absolute;
+      bottom: 14px;
+      left: 44px;
+      right: 44px;
+      z-index: 4;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--ff-mono);
+      font-size: 0.68rem;
+      color: var(--ink-sand);
+      background: rgba(11, 9, 7, 0.72);
+      border: 1px solid rgba(232, 155, 60, 0.24);
+      padding: 0.28rem 0.65rem;
+      border-radius: 4px;
+      pointer-events: none;
+    }
+    #krauge-stage-canvas {
       position: relative;
       z-index: 2;
-      height: 330px;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .krauge-figure-fallback {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1;
+      height: 360px;
       width: auto;
       object-fit: contain;
-      object-position: bottom center;
       filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.85));
-      transform: translateY(8px);
     }
 
     .hud-proclamation {
@@ -1036,9 +1065,9 @@
         </div>
       </div>
 
-      <!-- Visor Táctico HUD con Retrato Real y Proclamación del Día -->
+      <!-- Visor Táctico HUD con Retrato Animado Medium-Shot y Proclamación del Día -->
       <aside class="hud-stage" aria-label="Última proclamación desde el desierto">
-        <div class="hud-viewport">
+        <div class="hud-viewport" id="hud-viewport-box" title="Clic para escuchar o pausar la transmisión de Kraugé">
           <div class="hud-corner tl"></div>
           <div class="hud-corner tr"></div>
           <div class="hud-corner bl"></div>
@@ -1047,13 +1076,19 @@
             <span id="hud-card-cycle">CICLO #002 // ACTIVO</span>
             <span id="hud-card-date">2026-10-17</span>
           </div>
+          <canvas id="krauge-stage-canvas" width="540" height="420" aria-label="Transmisión óptica animada de Kraugé en el desierto"></canvas>
           <img
             src="./assets/krauge_portrait.webp"
             alt="Kraugé, androide peregrino en el desierto"
-            class="krauge-figure"
-            width="405"
-            height="720"
+            class="krauge-figure-fallback"
+            id="krauge-fallback-img"
+            width="400"
+            height="480"
           >
+          <div class="hud-bottom-telemetry">
+            <span id="hud-mode-status">SEÑAL ÓPTICA // VIGILIA EN EL DESIERTO</span>
+            <span id="hud-sprite-frame" style="color: var(--cyan-optic);">SPRITE S02 // 24FPS</span>
+          </div>
         </div>
 
         <div class="hud-proclamation">
@@ -1340,14 +1375,19 @@
     setInterval(updateClocks, 1000);
     updateClocks();
 
-    /* ── 3. REPRODUCTOR DE VOZ Y BARRAS DE ESPECTRO ── */
+    /* ── 3. REPRODUCTOR DE VOZ + MOTOR DE SPRITES MEDIUM-SHOT REACTIVO ── */
+    let currentVoiceEnergy = 0;
+    let isVoicePlaying = false;
+
     (function initVoicePlayer() {
       const audio = document.getElementById('krauge-audio');
       const btn = document.getElementById('play-voice-btn');
+      const hudBox = document.getElementById('hud-viewport-box');
       const btnText = document.getElementById('play-btn-text');
       const iconSvg = document.getElementById('play-icon-svg');
       const timeEl = document.getElementById('voice-time');
       const barsWrap = document.getElementById('waveform-bars');
+      const modeStatusEl = document.getElementById('hud-mode-status');
 
       const BAR_COUNT = 28;
       const bars = [];
@@ -1358,6 +1398,43 @@
         b.style.height = `${baseH}%`;
         barsWrap.appendChild(b);
         bars.push(b);
+      }
+
+      let audioCtx = null;
+      let analyser = null;
+      let freqData = null;
+
+      function ensureAudioAnalyser() {
+        if (audioCtx) return;
+        try {
+          const Ctx = window.AudioContext || window.webkitAudioContext;
+          audioCtx = new Ctx();
+          const source = audioCtx.createMediaElementSource(audio);
+          analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 64;
+          source.connect(analyser);
+          analyser.connect(audioCtx.destination);
+          freqData = new Uint8Array(analyser.frequencyBinCount);
+        } catch (_) {}
+      }
+
+      function sampleAudioEnergy() {
+        if (!isVoicePlaying) {
+          currentVoiceEnergy = 0;
+          return;
+        }
+        if (analyser && freqData) {
+          analyser.getByteFrequencyData(freqData);
+          let sum = 0;
+          const bins = Math.min(16, freqData.length);
+          for (let i = 1; i < bins; i++) sum += freqData[i];
+          const avg = sum / ((bins - 1) * 255);
+          currentVoiceEnergy = Math.min(1.15, avg * 1.9);
+        } else {
+          const t = audio.currentTime || 0;
+          currentVoiceEnergy = 0.35 + 0.55 * Math.abs(Math.sin(t * 7.5) * Math.cos(t * 4.2));
+        }
+        requestAnimationFrame(sampleAudioEnergy);
       }
 
       function fmt(sec) {
@@ -1386,21 +1463,170 @@
       });
 
       audio.addEventListener('ended', () => {
+        isVoicePlaying = false;
+        currentVoiceEnergy = 0;
         btnText.textContent = 'Escuchar Clamor';
         iconSvg.innerHTML = '<polygon points="6 4 20 12 6 20 6 4"/>';
+        if (modeStatusEl) modeStatusEl.textContent = 'SEÑAL ÓPTICA // VIGILIA EN EL DESIERTO';
       });
 
-      btn.addEventListener('click', () => {
+      function togglePlay() {
+        ensureAudioAnalyser();
+        if (audioCtx && audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
         if (audio.paused) {
           audio.play();
+          isVoicePlaying = true;
           btnText.textContent = 'Pausar Transmisión';
           iconSvg.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+          if (modeStatusEl) modeStatusEl.textContent = 'TRANSMITIENDO VOZ // DSP 8:1 ACTIVO';
+          requestAnimationFrame(sampleAudioEnergy);
         } else {
           audio.pause();
+          isVoicePlaying = false;
+          currentVoiceEnergy = 0;
           btnText.textContent = 'Escuchar Clamor';
           iconSvg.innerHTML = '<polygon points="6 4 20 12 6 20 6 4"/>';
+          if (modeStatusEl) modeStatusEl.textContent = 'SEÑAL ÓPTICA // VIGILIA EN EL DESIERTO';
         }
-      });
+      }
+
+      btn.addEventListener('click', togglePlay);
+      if (hudBox) hudBox.addEventListener('click', togglePlay);
+    })();
+
+    /* ── 3B. MOTOR DE ESCENA MEDIUM-SHOT CON SPRITES CONTIGUOS + EFECTO ÓPTICO ── */
+    (function initKraugeSpriteStage() {
+      const canvas = document.getElementById('krauge-stage-canvas');
+      const fallbackImg = document.getElementById('krauge-fallback-img');
+      const spriteLabel = document.getElementById('hud-sprite-frame');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+
+      const sheet = new Image();
+      sheet.src = './assets/krauge_sprites_med.webp';
+      const TOTAL_FRAMES = 8;
+      const FW = 400;
+      const FH = 480;
+
+      let sheetLoaded = false;
+      sheet.onload = () => {
+        sheetLoaded = true;
+        if (fallbackImg) fallbackImg.style.display = 'none';
+      };
+
+      const stageDust = Array.from({ length: 24 }, (_, i) => ({
+        x: (i * 53) % canvas.width,
+        y: (i * 41) % canvas.height,
+        vx: 0.25 + (i % 4) * 0.12,
+        vy: -(0.35 + (i % 3) * 0.18),
+        sz: i % 3 === 0 ? 3 : 2,
+        cyan: i % 4 !== 0,
+        front: i % 2 === 0,
+        phase: i * 0.9
+      }));
+
+      let curPos = 1.2;
+      let tSec = 0;
+      let frameCount = 0;
+
+      function renderStage() {
+        frameCount++;
+        tSec += 1 / 60;
+        const W = canvas.width;
+        const H = canvas.height;
+        ctx.clearRect(0, 0, W, H);
+
+        if (sheetLoaded) {
+          // Determinar posición objetivo en la escalera de 8 sprites
+          let targetPos = 1.2;
+          if (isVoicePlaying) {
+            targetPos = 1.0 + Math.min(1.0, currentVoiceEnergy) * (TOTAL_FRAMES - 1.05);
+          } else {
+            // En vigilia (idle): respiración suave entre los sprites 1..3 + parpadeo periódico (sprite 0)
+            const blinkCycle = frameCount % 210;
+            if (blinkCycle < 8) {
+              targetPos = 0.0;
+            } else {
+              targetPos = 1.35 + Math.sin(tSec * 1.15) * 0.95 + Math.cos(tSec * 0.48) * 0.45;
+            }
+          }
+
+          const diff = targetPos - curPos;
+          curPos += diff * (isVoicePlaying ? 0.28 : 0.09);
+          curPos = Math.max(0, Math.min(TOTAL_FRAMES - 1, curPos));
+
+          const idxLow = Math.floor(curPos);
+          const idxHigh = Math.min(TOTAL_FRAMES - 1, idxLow + 1);
+          const frac = curPos - idxLow;
+
+          if (spriteLabel && frameCount % 6 === 0) {
+            spriteLabel.textContent = `SPRITE S0${idxLow} // MEDIUM SHOT`;
+          }
+
+          // Halo óptico cian detrás del personaje
+          const auraAlpha = isVoicePlaying ? 0.22 + currentVoiceEnergy * 0.22 : 0.12 + 0.05 * Math.sin(tSec * 2.2);
+          const grad = ctx.createRadialGradient(W * 0.5, H * 0.42, 18, W * 0.5, H * 0.42, 210);
+          grad.addColorStop(0, `rgba(56, 217, 245, ${auraAlpha.toFixed(3)})`);
+          grad.addColorStop(0.55, `rgba(232, 155, 60, ${(auraAlpha * 0.35).toFixed(3)})`);
+          grad.addColorStop(1, 'rgba(11, 9, 7, 0)');
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, W, H);
+
+          // Polvo digital trasero
+          for (const p of stageDust) {
+            p.x = (p.x + p.vx + Math.sin(tSec * 1.6 + p.phase) * 0.2 + W) % W;
+            p.y = (p.y + p.vy + H) % H;
+            if (!p.front) {
+              ctx.fillStyle = p.cyan ? 'rgba(56, 217, 245, 0.45)' : 'rgba(232, 155, 60, 0.42)';
+              ctx.fillRect(p.x | 0, p.y | 0, p.sz, p.sz);
+            }
+          }
+
+          // Flotación suave de respiración + escala Medium Shot encuadrada al pecho/rostro
+          const bobY = Math.sin(tSec * 2.1) * 3.2;
+          const bobX = Math.cos(tSec * 1.05) * 1.5;
+          const destW = 390;
+          const destH = 468;
+          const dx = (W - destW) / 2 + bobX;
+          const dy = H - destH + 34 + bobY;
+
+          // Sombra y frame base con cross-blending
+          ctx.save();
+          ctx.globalAlpha = 1.0;
+          ctx.drawImage(sheet, idxLow * FW, 0, FW, FH, dx, dy, destW, destH);
+          if (frac > 0.04 && idxHigh !== idxLow) {
+            ctx.globalAlpha = frac;
+            ctx.drawImage(sheet, idxHigh * FW, 0, FW, FH, dx, dy, destW, destH);
+          }
+
+          // Desfase óptico RGB / interferencia de transmisión sutil
+          const glitchTrigger = isVoicePlaying ? currentVoiceEnergy > 0.45 : (frameCount % 140 < 6);
+          if (glitchTrigger) {
+            const shift = isVoicePlaying ? 3.5 : 2.2;
+            ctx.globalCompositeOperation = 'screen';
+            ctx.globalAlpha = isVoicePlaying ? 0.24 : 0.14;
+            ctx.drawImage(sheet, idxLow * FW, 0, FW, FH, dx + shift, dy, destW, destH);
+          }
+          ctx.restore();
+
+          // Polvo digital frontal + barrido láser óptico
+          for (const p of stageDust) {
+            if (p.front) {
+              ctx.fillStyle = p.cyan ? 'rgba(56, 217, 245, 0.72)' : 'rgba(246, 190, 104, 0.68)';
+              ctx.fillRect(p.x | 0, p.y | 0, p.sz, p.sz);
+            }
+          }
+
+          const scanY = (tSec * 68) % H;
+          ctx.fillStyle = 'rgba(56, 217, 245, 0.09)';
+          ctx.fillRect(0, scanY, W, 2);
+        }
+
+        requestAnimationFrame(renderStage);
+      }
+      requestAnimationFrame(renderStage);
     })();
 
     /* ── 4. SELECTOR DE LA LATITA DIGITAL ── */
