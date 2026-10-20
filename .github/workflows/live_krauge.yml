@@ -15,6 +15,10 @@ on:
         description: "URL RTMP/RTMPS completa (Facebook / YouTube / IG). Déjala vacía si activas auto_facebook_live."
         required: false
         default: ""
+      auto_youtube_live:
+        description: "Crear evento YouTube Live 100% automático vía API (true/false)"
+        required: false
+        default: "false"
       auto_facebook_live:
         description: "Crear evento Facebook Live automáticamente vía Graph API (true/false)"
         required: false
@@ -80,8 +84,11 @@ jobs:
           INJECT_COMMENT_ENV: ${{ github.event.inputs.inject_comment }}
         run: |
           EXTRA_FLAGS=""
+          if [ "${{ github.event.inputs.auto_youtube_live }}" = "true" ]; then
+            EXTRA_FLAGS="$EXTRA_FLAGS --yt-auto-create"
+          fi
           if [ "${{ github.event.inputs.auto_facebook_live }}" = "true" ]; then
-            EXTRA_FLAGS="--fb-auto-create"
+            EXTRA_FLAGS="$EXTRA_FLAGS --fb-auto-create"
           fi
           python krauge_live.py --duration "${{ github.event.inputs.duration_minutes || '1' }}" --inject-comment "$INJECT_COMMENT_ENV" $EXTRA_FLAGS
 

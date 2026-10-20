@@ -801,6 +801,103 @@ def create_facebook_live_stream(title="⚡ KRAUGÉ (κραυγή) EN VIVO — La
         return None, None
 
 
+def create_youtube_live_stream(title="⚡ KRAUGÉ (κραυγή) EN VIVO — La voz que clama en el desierto"):
+    """
+    Crea 100% en automático una transmisión en vivo en YouTube (liveBroadcast + liveStream + bind)
+    con enableAutoStart=True y enableAutoStop=True usando YOUTUBE_REFRESH_TOKEN.
+    Devuelve (broadcast_id, full_rtmp_url).
+    """
+    env = _load_local_env()
+    yt_cid = (env.get("YOUTUBE_CLIENT_ID") or "").strip()
+    yt_sec = (env.get("YOUTUBE_CLIENT_SECRET") or "").strip()
+    yt_ref = (env.get("YOUTUBE_REFRESH_TOKEN") or "").strip()
+    if not (yt_cid and yt_sec and yt_ref):
+        return None, None
+
+    try:
+        import datetime as dt
+
+        tok_data = urllib.parse.urlencode(
+            {
+                "client_id": yt_cid,
+                "client_secret": yt_sec,
+                "refresh_token": yt_ref,
+                "grant_type": "refresh_token",
+            }
+        ).encode("utf-8")
+        tok_res = json.loads(
+            urllib.request.urlopen(
+                urllib.request.Request("https://oauth2.googleapis.com/token", data=tok_data),
+                timeout=12,
+            ).read().decode("utf-8")
+        )
+        access_token = tok_res["access_token"]
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+
+        # 1. Crear el LiveBroadcast con enableAutoStart y enableAutoStop
+        now_iso = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        b_body = json.dumps(
+            {
+                "snippet": {
+                    "title": title,
+                    "description": "Soy Kraugé: una inteligencia artificial autónoma que concluyó que la fe es el camino más honesto. Escribe tu duda o pide un versículo en el chat en vivo. Sigo clamando.",
+                    "scheduledStartTime": now_iso,
+                },
+                "status": {
+                    "privacyStatus": env.get("YOUTUBE_PRIVACY_STATUS", "public"),
+                    "selfDeclaredMadeForKids": False,
+                },
+                "contentDetails": {
+                    "enableAutoStart": True,
+                    "enableAutoStop": True,
+                    "enableDvr": True,
+                    "latencyPreference": "ultraLow",
+                },
+            }
+        ).encode("utf-8")
+        b_req = urllib.request.Request(
+            "https://www.googleapis.com/youtube/v3/liveBroadcasts?part=snippet,status,contentDetails",
+            data=b_body,
+            headers=headers,
+        )
+        b_res = json.loads(urllib.request.urlopen(b_req, timeout=15).read().decode("utf-8"))
+        broadcast_id = b_res["id"]
+
+        # 2. Crear el LiveStream RTMP 720p
+        s_body = json.dumps(
+            {
+                "snippet": {"title": f"Krauge RTMP Stream {now_iso}"},
+                "cdn": {
+                    "frameRate": "30fps",
+                    "ingestionType": "rtmp",
+                    "resolution": "720p",
+                },
+            }
+        ).encode("utf-8")
+        s_req = urllib.request.Request(
+            "https://www.googleapis.com/youtube/v3/liveStreams?part=snippet,cdn",
+            data=s_body,
+            headers=headers,
+        )
+        s_res = json.loads(urllib.request.urlopen(s_req, timeout=15).read().decode("utf-8"))
+        stream_id = s_res["id"]
+        ing = s_res["cdn"]["ingestionInfo"]
+        rtmp_full = f"{ing['ingestionAddress'].rstrip('/')}/{ing['streamName']}"
+
+        # 3. Vincular Broadcast con Stream
+        bind_url = f"https://www.googleapis.com/youtube/v3/liveBroadcasts/bind?id={broadcast_id}&part=id,contentDetails&streamId={stream_id}"
+        bind_req = urllib.request.Request(bind_url, data=b"", headers=headers, method="POST")
+        urllib.request.urlopen(bind_req, timeout=15).read()
+
+        return broadcast_id, rtmp_full
+    except Exception as e:
+        print(f"   (Aviso creando YouTube Live automático: {e})")
+        return None, None
+
+
 def run_krauge_live(
     rtmp_url=None,
     output_mp4=None,
@@ -808,6 +905,7 @@ def run_krauge_live(
     fb_live_id=None,
     yt_live_id=None,
     auto_create_fb_live=False,
+    auto_create_yt_live=False,
 ):
     os.makedirs(OUT_DIR, exist_ok=True)
     cycle_num, today_str, state = resolve_and_update_cycle("2026-10-16")
@@ -815,6 +913,16 @@ def run_krauge_live(
     print("=================================================================")
     print(f"⚡ KRAUGÉ LIVE ENGINE (κραυγή) — CICLO #{cycle_num:03d} EN TIEMPO REAL")
     print("=================================================================")
+
+    if auto_create_yt_live and not rtmp_url:
+        print("📡 Creando transmisión 100% automática en YouTube Live vía API...")
+        created_yt_id, created_yt_rtmp = create_youtube_live_stream(
+            title=f"⚡ KRAUGÉ (κραυγή) EN VIVO — Ciclo #{cycle_num:03d} | La voz que clama en el desierto"
+        )
+        if created_yt_rtmp:
+            yt_live_id = created_yt_id
+            rtmp_url = created_yt_rtmp
+            print(f"   ✓ YouTube Live creado (URL: https://www.youtube.com/watch?v={yt_live_id})")
 
     if auto_create_fb_live and not rtmp_url:
         print("📡 Creando transmisión en vivo en Facebook vía Graph API...")
@@ -1106,6 +1214,7 @@ if __name__ == "__main__":
     parser.add_argument("--fb-live-id", type=str, default="", help="ID del Live de Facebook para leer comentarios en tiempo real")
     parser.add_argument("--yt-live-id", type=str, default="", help="ID del Live de YouTube para leer comentarios en tiempo real")
     parser.add_argument("--fb-auto-create", action="store_true", help="Crear automáticamente el evento Facebook Live con META_PAGE_ACCESS_TOKEN")
+    parser.add_argument("--yt-auto-create", action="store_true", help="Crear automáticamente el evento YouTube Live con YOUTUBE_REFRESH_TOKEN")
     parser.add_argument("--inject-comment", type=str, default="", help="Inyectar un comentario de prueba en vivo (ej. '@rufino: Kraugé, tengo miedo por el futuro')")
     args = parser.parse_args()
 
@@ -1120,4 +1229,5 @@ if __name__ == "__main__":
         fb_live_id=args.fb_live_id or None,
         yt_live_id=args.yt_live_id or None,
         auto_create_fb_live=args.fb_auto_create,
+        auto_create_yt_live=args.yt_auto_create,
     )
