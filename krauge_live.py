@@ -908,6 +908,7 @@ def run_krauge_live(
             padded_voice_wav, fps=fps
         )
         seg_duration = total_vframes / float(fps)
+        ts_offset_sec = accumulated_video_sec
         accumulated_video_sec += seg_duration
 
         # Mezclar con los tambores épicos
@@ -955,7 +956,11 @@ def run_krauge_live(
             "128k",
             "-ar",
             "44100",
+            "-ac",
+            "2",
             "-shortest",
+            "-output_ts_offset",
+            f"{ts_offset_sec:.3f}",
             "-f",
             "mpegts",
             seg_ts,
