@@ -6,6 +6,7 @@
   "scripts": {
     "generate": "python generate_krauge_video.py",
     "publish": "node publish_video.js",
+    "publish:metricool": "node metricool_publisher.js",
     "check-tokens": "node check_tokens.js"
   },
   "dependencies": {

@@ -40,7 +40,8 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements.txt playwright
+          playwright install --with-deps chromium
 
       - name: Install Node dependencies
         run: npm install --no-save axios dotenv form-data

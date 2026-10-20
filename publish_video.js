@@ -127,7 +127,7 @@ async function publishAll() {
   const results = {};
   results.tiktok = await runPlatform('tiktok', '1/3: TIKTOK', () => {
     const safeTikTokTitle = meta.shortTitle.replace(/[^\w\s#áéíóúÁÉÍÓÚñÑ.,:!|-]/g, '').replace(/\s+/g, ' ').trim().substring(0, 90);
-    return publishVideoToTikTok(VIDEO_PATH, { title: safeTikTokTitle });
+    return publishVideoToTikTok(VIDEO_PATH, { title: safeTikTokTitle, caption: meta.caption });
   });
   results.instagram = await runPlatform('instagram', '2/3: INSTAGRAM REELS', () =>
     publishReelToInstagram(VIDEO_PATH, { caption: meta.caption, share_to_feed: true })

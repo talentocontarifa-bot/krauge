@@ -323,6 +323,15 @@ async function publishVideoToTikTok(videoFilePath, options = {}) {
     // Si la llamada directa falló por ser Sandbox / cuenta no auditada (403 o error_code)
     if (!initRes) {
       if (errCode === 'unaudited_client_can_only_post_to_private_accounts' || status === 403) {
+        if (process.env.METRICOOL_DISABLE !== 'true') {
+          try {
+            console.log('⚡ App TikTok en Sandbox: redirigiendo publicación automática a Público vía Metricool...');
+            const { publishVideoViaMetricool } = require('./metricool_publisher');
+            return await publishVideoViaMetricool(videoFilePath, { title, caption: options.caption || title });
+          } catch (mcErr) {
+            console.warn('⚠️ Falló publicación vía Metricool, continuando con fallback Creator Inbox:', mcErr.message);
+          }
+        }
         console.log(`ℹ️ Direct Post no permitido (${errCode || status}). Usando Creator Inbox (borrador en la app de TikTok)...`);
         mode = 'INBOX_DRAFT';
         initUrl = 'https://open.tiktokapis.com/v2/post/publish/inbox/video/init/';
