@@ -323,7 +323,7 @@ async function publishVideoToTikTok(videoFilePath, options = {}) {
     // Si la llamada directa falló por ser Sandbox / cuenta no auditada (403 o error_code)
     if (!initRes) {
       if (errCode === 'unaudited_client_can_only_post_to_private_accounts' || status === 403) {
-        if (process.env.METRICOOL_DISABLE !== 'true') {
+        if (process.env.METRICOOL_ENABLED === 'true') {
           try {
             console.log('⚡ App TikTok en Sandbox: redirigiendo publicación automática a Público vía Metricool...');
             const { publishVideoViaMetricool } = require('./metricool_publisher');
