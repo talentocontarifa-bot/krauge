@@ -364,12 +364,54 @@ class LiveSignalListener:
         except Exception:
             pass
 
-        # 2. Revisar Facebook Live Comments API (si hay FB_LIVE_VIDEO_ID)
+        # 2. Revisar Instagram Live en tiempo real (/{ig_id}/live_media -> comments)
+        ig_id = (self.env.get("INSTAGRAM_ACCOUNT_ID") or "").strip()
         fb_token = (
             self.env.get("META_PAGE_ACCESS_TOKEN")
             or self.env.get("META_USER_ACCESS_TOKEN")
             or ""
         ).strip()
+        if ig_id and fb_token:
+            try:
+                ig_live_url = (
+                    f"https://graph.facebook.com/v21.0/{ig_id}/live_media"
+                    f"?fields=id,comments{{id,text,username,from,timestamp}}&access_token={fb_token}"
+                )
+                raw_ig = urllib.request.urlopen(ig_live_url, timeout=6).read().decode("utf-8", errors="ignore")
+                live_items = json.loads(raw_ig).get("data", [])
+                for live_obj in live_items:
+                    cmts_data = (live_obj.get("comments") or {}).get("data", [])
+                    if not hasattr(self, "_ig_initialized"):
+                        self._ig_initialized = True
+                        for old_c in cmts_data[1:]:
+                            self.seen_ids.add(f"iglive_{old_c.get('id')}")
+                    for c in reversed(cmts_data):
+                        cid = f"iglive_{c.get('id')}"
+                        if cid in self.seen_ids:
+                            continue
+                        self.seen_ids.add(cid)
+                        msg = (c.get("text") or "").strip()
+                        if not msg:
+                            continue
+                        sender = (
+                            c.get("username")
+                            or (c.get("from") or {}).get("username")
+                            or (c.get("from") or {}).get("name")
+                            or "viajero_ig"
+                        )
+                        self.msg_queue.put(
+                            {
+                                "id": cid,
+                                "platform": "Instagram Live",
+                                "author": f"@{sender.lstrip('@').replace(' ', '_')}",
+                                "text": msg,
+                                "likes": 1,
+                            }
+                        )
+            except Exception as e:
+                print(f"   (Aviso polling Instagram Live: {e})")
+
+        # 3. Revisar Facebook Live Comments API (si hay FB_LIVE_VIDEO_ID)
         if self.fb_live_id and fb_token:
             try:
                 url = (
@@ -1009,10 +1051,17 @@ def run_krauge_live(
 
         segment_files_to_concat.append(seg_ts)
 
-        # 5. Encolar hacia el hilo emisor RTMP continuo (sin bloquear el render del siguiente segmento)
+        # 5. Encolar hacia el hilo emisor RTMP con Just-In-Time Pacing
+        # Esperamos a que falten solo ~5s del segmento actual antes de generar el siguiente
+        # para que Kraugé siempre lea los comentarios recién escritos en Instagram Live
         if rtmp_url:
+            if not hasattr(listener, "_stream_start_wall"):
+                listener._stream_start_wall = time.time()
             print(f"   📡 Segmento #{segment_idx} encolado al stream RTMP continuo...")
             ts_broadcast_queue.put(seg_ts)
+            while (accumulated_video_sec - (time.time() - listener._stream_start_wall)) > 5.0:
+                listener.poll_once()
+                time.sleep(1.0)
 
     if rtmp_url and broadcaster_thread:
         print("\n⏳ Esperando a que termine de emitirse el buffer RTMP en vivo...")
