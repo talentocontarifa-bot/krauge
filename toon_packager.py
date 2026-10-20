@@ -7,6 +7,7 @@ import wave
 import base64
 import subprocess
 import urllib.request
+import urllib.parse
 import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -436,7 +437,6 @@ def fetch_krauge_comments(state=None):
 
     if yt_cid and yt_sec and yt_ref:
         try:
-            import urllib.parse
             token_data = urllib.parse.urlencode(
                 {
                     "client_id": yt_cid,
