@@ -277,7 +277,7 @@ Formato: {{"speech": "..."}}"""
         return speech, verse, comment
 
     # Modo Vigilia Activa (cuando el chat está en silencio, Kraugé proclama en vivo)
-    idle_topics = ["fe", "paz", "fuerza", "proposito", "miedo", "soledad", "perdon"]
+    idle_topics = list(THEMATIC_CONCORDANCE.keys())
     topic = idle_topics[(cycle_num + segment_idx) % len(idle_topics)]
     t_verses = THEMATIC_CONCORDANCE[topic]["verses"]
     v_ref, v_body = t_verses[segment_idx % len(t_verses)]
