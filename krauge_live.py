@@ -407,6 +407,10 @@ class LiveSignalListener:
         self.seen_ids = set()
         self.msg_queue = queue.Queue()
         self._last_general_poll = 0.0
+        self._last_yt_live_poll = 0.0
+        self._yt_access_token = None
+        self._yt_token_expiry = 0.0
+        self._yt_chat_id = None
 
         # Preparar archivo inbox si no existe
         if not os.path.exists(INBOX_FILE):
@@ -525,13 +529,91 @@ class LiveSignalListener:
             except Exception as e:
                 print(f"   (Aviso polling Facebook Live: {e})")
 
-        # 3. Cada 18s revisar comentarios nuevos en Reels/Shorts de Kraugé
+        # 4. Revisar YouTube Live Chat API en tiempo real (si hay YT_LIVE_VIDEO_ID)
+        now_yt = time.time()
+        if self.yt_live_id and (now_yt - self._last_yt_live_poll >= 4.5):
+            self._last_yt_live_poll = now_yt
+            yt_cid = (self.env.get("YOUTUBE_CLIENT_ID") or "").strip()
+            yt_sec = (self.env.get("YOUTUBE_CLIENT_SECRET") or "").strip()
+            yt_ref = (self.env.get("YOUTUBE_REFRESH_TOKEN") or "").strip()
+            if yt_cid and yt_sec and yt_ref:
+                try:
+                    if not self._yt_access_token or now_yt >= self._yt_token_expiry:
+                        tok_data = urllib.parse.urlencode(
+                            {
+                                "client_id": yt_cid,
+                                "client_secret": yt_sec,
+                                "refresh_token": yt_ref,
+                                "grant_type": "refresh_token",
+                            }
+                        ).encode("utf-8")
+                        tok_res = json.loads(
+                            urllib.request.urlopen(
+                                urllib.request.Request("https://oauth2.googleapis.com/token", data=tok_data),
+                                timeout=8,
+                            ).read().decode("utf-8")
+                        )
+                        self._yt_access_token = tok_res["access_token"]
+                        self._yt_token_expiry = now_yt + 3000.0
+
+                    yt_headers = {"Authorization": f"Bearer {self._yt_access_token}"}
+
+                    if not self._yt_chat_id:
+                        v_url = f"https://www.googleapis.com/youtube/v3/videos?part=liveStreamingDetails&id={self.yt_live_id}"
+                        v_res = json.loads(
+                            urllib.request.urlopen(
+                                urllib.request.Request(v_url, headers=yt_headers), timeout=8
+                            ).read().decode("utf-8")
+                        )
+                        v_items = v_res.get("items", [])
+                        if v_items:
+                            self._yt_chat_id = (v_items[0].get("liveStreamingDetails") or {}).get("activeLiveChatId")
+
+                    if self._yt_chat_id:
+                        c_url = (
+                            f"https://www.googleapis.com/youtube/v3/liveChat/messages"
+                            f"?liveChatId={urllib.parse.quote(self._yt_chat_id)}&part=snippet,authorDetails&maxResults=25"
+                        )
+                        c_res = json.loads(
+                            urllib.request.urlopen(
+                                urllib.request.Request(c_url, headers=yt_headers), timeout=8
+                            ).read().decode("utf-8")
+                        )
+                        for item in c_res.get("items", []):
+                            raw_id = item.get("id")
+                            if not raw_id:
+                                continue
+                            cid = f"ytlive_{raw_id}"
+                            if cid in self.seen_ids:
+                                continue
+                            self.seen_ids.add(cid)
+                            snippet = item.get("snippet") or {}
+                            msg = (snippet.get("displayMessage") or "").strip()
+                            if not msg:
+                                continue
+                            author_det = item.get("authorDetails") or {}
+                            sender = (author_det.get("displayName") or "Viajero_YT").strip()
+                            clean_author = sender if sender.startswith("@") else f"@{sender.replace(' ', '_')}"
+                            print(f"   📥 [YouTube Live Chat detectado] {clean_author}: \"{msg}\"")
+                            self.msg_queue.put(
+                                {
+                                    "id": cid,
+                                    "platform": "YouTube Live",
+                                    "author": clean_author,
+                                    "text": msg,
+                                    "likes": 1,
+                                }
+                            )
+                except Exception as e:
+                    print(f"   (Aviso polling YouTube Live Chat: {e})")
+
+        # 5. Solo si NO hay un Live activo de YouTube/Facebook y la cola está vacía, usar comentarios recientes
         now = time.time()
-        if now - self._last_general_poll > 18.0:
+        if not (self.yt_live_id or self.fb_live_id) and self.msg_queue.empty() and (now - self._last_general_poll > 30.0):
             self._last_general_poll = now
             try:
                 cmts = fetch_krauge_comments({"answered_comment_ids": list(self.seen_ids)})
-                for c in cmts[:3]:
+                for c in cmts[:1]:
                     if c["id"] not in self.seen_ids:
                         self.seen_ids.add(c["id"])
                         self.msg_queue.put(c)
