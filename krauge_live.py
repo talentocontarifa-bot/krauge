@@ -10,6 +10,7 @@ import threading
 import subprocess
 import urllib.request
 import urllib.parse
+import urllib.error
 import html as html_lib
 import cv2
 import numpy as np
@@ -988,7 +989,7 @@ def create_facebook_live_stream(title="⚡ KRAUGÉ (κραυγή) EN VIVO — La
     """
     env = _load_local_env()
     token = (env.get("META_PAGE_ACCESS_TOKEN") or "").strip()
-    page_id = (env.get("FACEBOOK_PAGE_ID") or "me").strip()
+    page_id = (env.get("FACEBOOK_PAGE_ID") or env.get("META_PAGE_ID") or "me").strip()
     if not token:
         return None, None
 
@@ -1005,6 +1006,10 @@ def create_facebook_live_stream(title="⚡ KRAUGÉ (κραυγή) EN VIVO — La
         req = urllib.request.Request(url, data=data)
         res = json.loads(urllib.request.urlopen(req, timeout=15).read().decode("utf-8"))
         return res.get("id"), res.get("stream_url")
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode("utf-8", errors="ignore")
+        print(f"   (Aviso creando Facebook Live automático [{e.code}]: {err_body})")
+        return None, None
     except Exception as e:
         print(f"   (Aviso creando Facebook Live automático: {e})")
         return None, None
@@ -1075,14 +1080,14 @@ def create_youtube_live_stream(title="⚡ KRAUGÉ (κραυγή) EN VIVO — La 
         b_res = json.loads(urllib.request.urlopen(b_req, timeout=15).read().decode("utf-8"))
         broadcast_id = b_res["id"]
 
-        # 2. Crear el LiveStream RTMP 720p
+        # 2. Crear el LiveStream RTMP (variable para soportar 9:16 vertical @ 24fps sin alertas)
         s_body = json.dumps(
             {
                 "snippet": {"title": f"Krauge RTMP Stream {now_iso}"},
                 "cdn": {
-                    "frameRate": "30fps",
+                    "frameRate": "variable",
                     "ingestionType": "rtmp",
-                    "resolution": "720p",
+                    "resolution": "variable",
                 },
             }
         ).encode("utf-8")
@@ -1102,6 +1107,10 @@ def create_youtube_live_stream(title="⚡ KRAUGÉ (κραυγή) EN VIVO — La 
         urllib.request.urlopen(bind_req, timeout=15).read()
 
         return broadcast_id, rtmp_full
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode("utf-8", errors="ignore")
+        print(f"   (Aviso creando YouTube Live automático [{e.code}]: {err_body})")
+        return None, None
     except Exception as e:
         print(f"   (Aviso creando YouTube Live automático: {e})")
         return None, None
@@ -1169,38 +1178,48 @@ def run_krauge_live(
     # Así mientras el segmento N se emite a 1.0x (-re), el CPU ya está renderizando el segmento N+1 a 2.0x (cero cortes)
     ts_broadcast_queue = queue.Queue(maxsize=3)
     broadcaster_thread = None
+    rtmp_active = threading.Event()
 
     if rtmp_url:
+        rtmp_active.set()
+
         def _rtmp_broadcaster_worker():
-            rtmp_proc = subprocess.Popen(
-                [
-                    renderer.ffmpeg_path,
-                    "-re",
-                    "-f",
-                    "mpegts",
-                    "-i",
-                    "-",
-                    "-c:v",
-                    "copy",
-                    "-c:a",
-                    "aac",
-                    "-b:a",
-                    "128k",
-                    "-ar",
-                    "44100",
-                    "-f",
-                    "flv",
-                    rtmp_url,
-                ],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+            rtmp_proc = None
             while True:
                 ts_path = ts_broadcast_queue.get()
                 if ts_path is None:
+                    ts_broadcast_queue.task_done()
                     break
                 try:
+                    if rtmp_proc is None:
+                        rtmp_proc = subprocess.Popen(
+                            [
+                                renderer.ffmpeg_path,
+                                "-re",
+                                "-f",
+                                "mpegts",
+                                "-i",
+                                "-",
+                                "-c:v",
+                                "copy",
+                                "-c:a",
+                                "aac",
+                                "-b:a",
+                                "128k",
+                                "-ar",
+                                "44100",
+                                "-f",
+                                "flv",
+                                rtmp_url,
+                            ],
+                            stdin=subprocess.PIPE,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                        )
+                    elif rtmp_proc.poll() is not None:
+                        print("   ⚠️ El servidor RTMP cerró la conexión prematuramente.")
+                        rtmp_active.clear()
+                        break
                     with open(ts_path, "rb") as tf:
                         while True:
                             chunk = tf.read(65536)
@@ -1210,14 +1229,24 @@ def run_krauge_live(
                     rtmp_proc.stdin.flush()
                 except Exception as e:
                     print(f"   (Aviso en socket RTMP: {e})")
+                    rtmp_active.clear()
                     break
                 finally:
                     ts_broadcast_queue.task_done()
-            try:
-                rtmp_proc.stdin.close()
-                rtmp_proc.wait(timeout=10)
-            except Exception:
-                pass
+            rtmp_active.clear()
+            # Vaciar cualquier item pendiente para nunca bloquear put()
+            while not ts_broadcast_queue.empty():
+                try:
+                    ts_broadcast_queue.get_nowait()
+                    ts_broadcast_queue.task_done()
+                except Exception:
+                    break
+            if rtmp_proc is not None:
+                try:
+                    rtmp_proc.stdin.close()
+                    rtmp_proc.wait(timeout=10)
+                except Exception:
+                    pass
 
         broadcaster_thread = threading.Thread(target=_rtmp_broadcaster_worker, daemon=True)
         broadcaster_thread.start()
@@ -1379,19 +1408,25 @@ def run_krauge_live(
         # 5. Encolar hacia el hilo emisor RTMP con Just-In-Time Pacing
         # Esperamos a que falten solo ~5s del segmento actual antes de generar el siguiente
         # para que Kraugé siempre lea los comentarios recién escritos en Instagram Live
-        if rtmp_url:
+        if rtmp_url and rtmp_active.is_set():
             if not hasattr(listener, "_stream_start_wall"):
                 listener._stream_start_wall = time.time()
             print(f"   📡 Segmento #{segment_idx} encolado al stream RTMP continuo...")
-            ts_broadcast_queue.put(seg_ts)
-            while (accumulated_video_sec - (time.time() - listener._stream_start_wall)) > 5.0:
+            try:
+                ts_broadcast_queue.put(seg_ts, timeout=30)
+            except queue.Full:
+                print("   ⚠️ Cola RTMP llena o desconectada; continuando grabación local...")
+            while rtmp_active.is_set() and (accumulated_video_sec - (time.time() - listener._stream_start_wall)) > 5.0:
                 listener.poll_once()
                 time.sleep(1.0)
 
-    if rtmp_url and broadcaster_thread:
+    if rtmp_url and broadcaster_thread and rtmp_active.is_set():
         print("\n⏳ Esperando a que termine de emitirse el buffer RTMP en vivo...")
-        ts_broadcast_queue.put(None)
-        broadcaster_thread.join()
+        try:
+            ts_broadcast_queue.put(None, timeout=10)
+        except Exception:
+            pass
+        broadcaster_thread.join(timeout=60)
 
     # Si se pidió guardar un archivo MP4 consolidado de la sesión en vivo
     if output_mp4 and segment_files_to_concat:

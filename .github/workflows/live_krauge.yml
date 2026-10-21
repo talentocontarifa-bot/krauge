@@ -90,7 +90,7 @@ jobs:
           if [ "${{ github.event.inputs.auto_facebook_live }}" = "true" ]; then
             EXTRA_FLAGS="$EXTRA_FLAGS --fb-auto-create"
           fi
-          python krauge_live.py --duration "${{ github.event.inputs.duration_minutes || '1' }}" --inject-comment "$INJECT_COMMENT_ENV" $EXTRA_FLAGS
+          python -u krauge_live.py --duration "${{ github.event.inputs.duration_minutes || '1' }}" --inject-comment "$INJECT_COMMENT_ENV" $EXTRA_FLAGS
 
       - name: Subir Grabación del Live (Respaldo MP4)
         if: always()
