@@ -225,7 +225,7 @@ def call_krauge_llm(prompt):
 
     # 2. Usar Google Gemini (gemini-2.5-flash -> gemini-2.0-flash)
     if gemini_key:
-        for model_name in ["gemini-2.5-flash", "gemini-2.0-flash"]:
+        for model_name in ["gemini-3.5-flash", "gemini-3.6-flash", "gemini-2.5-flash", "gemini-3-flash-preview"]:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={gemini_key}"
                 req_body = json.dumps(
@@ -888,25 +888,65 @@ class ToonPackager:
         temp_mp3 = output_wav_path + ".raw.mp3"
         safe_text = text.replace('"', "").replace("\n", " ")
 
-        subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "edge_tts",
-                "--voice",
-                voice,
-                f"--rate={rate}",
-                f"--pitch={pitch}",
-                "--text",
-                safe_text,
-                "--write-media",
-                temp_mp3,
-            ],
-            check=True,
-        )
+        edge_ok = False
+        used_gtts_fallback = False
+        for v_try, r_try, p_try in [
+            (voice, rate, pitch),
+            (voice, "+0%", "+0Hz"),
+            ("es-CO-GonzaloNeural", rate, pitch),
+        ]:
+            try:
+                subprocess.run(
+                    [
+                        sys.executable,
+                        "-m",
+                        "edge_tts",
+                        "--voice",
+                        v_try,
+                        f"--rate={r_try}",
+                        f"--pitch={p_try}",
+                        "--text",
+                        safe_text,
+                        "--write-media",
+                        temp_mp3,
+                    ],
+                    check=True,
+                    timeout=35,
+                )
+                if os.path.exists(temp_mp3) and os.path.getsize(temp_mp3) > 1000:
+                    edge_ok = True
+                    break
+            except Exception as e_edge:
+                print(f"   (Aviso edge-tts [{v_try}]: {e_edge})")
+                time.sleep(2)
 
+        if not edge_ok:
+            print("   -> Activando respaldo TTS HTTP directo para Krauge (IP runner)...")
+            import urllib.parse
+            words = safe_text.split()
+            chunks, cur = [], ""
+            for w in words:
+                if len(cur) + len(w) + 1 <= 170:
+                    cur = f"{cur} {w}".strip()
+                else:
+                    if cur:
+                        chunks.append(cur)
+                    cur = w
+            if cur:
+                chunks.append(cur)
+            raw_bytes = bytearray()
+            for ch in chunks:
+                q = urllib.parse.quote(ch)
+                g_url = f"https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=es-MX&q={q}"
+                req = urllib.request.Request(g_url, headers={"User-Agent": "Mozilla/5.0"})
+                raw_bytes.extend(urllib.request.urlopen(req, timeout=15).read())
+            with open(temp_mp3, "wb") as f_mp3:
+                f_mp3.write(raw_bytes)
+            used_gtts_fallback = True
+
+        pitch_prefix = "asetrate=24000*0.80,aresample=24000,atempo=1.28," if used_gtts_fallback else ""
         heavy_compressed_cyber_filter = (
-            "highpass=f=200,lowpass=f=3600,"
+            pitch_prefix + "highpass=f=200,lowpass=f=3600,"
             "acompressor=threshold=-24dB:ratio=8:attack=4:release=60:makeup=9dB,"
             "acrusher=level_in=1.15:level_out=1.15:bits=9:mode=log:aa=1,"
             "flanger=delay=1.8:depth=2.5:regen=55:width=75:speed=0.45,"
