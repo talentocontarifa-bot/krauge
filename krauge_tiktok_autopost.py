@@ -163,15 +163,28 @@ def build_tct_caption(news_data_path: Path | None, editorial_data_path: Path | N
 
 def build_dreamcrafters_caption(video_filename: str = "") -> str:
     lower_name = video_filename.lower()
-    if "referidos" in lower_name or "socios" in lower_name:
+    is_mujer = "mujer" in lower_name or "bomber" in lower_name
+    is_bttf = "volver_al_futuro" in lower_name or "bttf" in lower_name or "marty" in lower_name
+    if "referidos" in lower_name or "socios" in lower_name or "afiliados" in lower_name:
         return (
-            "💰🍄 ¿Y si en vez de pagar publicidad, te pagamos el 20% directamente a ti? 🎮✨ | "
-            "Con el Programa de Socios de DreamCrafters, por cada invitación videojuego que compren desde tu link en grupos de mamás o salones de fiestas, recibes el 20% directo en tu CLABE vía SPEI, sin preguntas. | "
+            "💰⚡ ¿Y si en vez de pagar publicidad, te pagamos el 20% directamente a ti vía SPEI? 🎮✨ | "
+            "Con el Programa de Socios de DreamCrafters, por cada invitación videojuego (como la nueva de Volver al Futuro 88 MPH en cabina 360° del DeLorean o Fortnite Battle Royale) que compren desde tu link en grupos de mamás o salones de fiestas, recibes el 20% directo en tu CLABE vía SPEI, sin topes. | "
             "👉 Genera tu link del 20% en 30 segundos: https://dreamcrafters.lat/socios | "
+            "🚗 Demo Volver al Futuro 88 MPH: https://dreamcrafters.lat/invitacionvolveralfuturo/index.html | "
             "🌐 Catálogo de invitaciones jugables: https://dreamcrafters.lat | "
-            "🕹️ Demo Super Mario Galaxy: https://dreamcrafters.lat/invitacionmario/index.html | "
             "⚡ Impulsado por https://talentocontarifa.lat "
-            "#DreamCrafters #FiestasInfantiles #InvitacionesDigitales #MamasEmprendedoras #IngresosExtra #SuperMarioGalaxy #TalentoConTarifa"
+            "#DreamCrafters #VolverAlFuturo #BackToTheFuture #Fortnite #FiestasInfantiles #InvitacionesDigitales #MamasEmprendedoras #IngresosExtra #TalentoConTarifa"
+        )[:2100]
+    if is_bttf:
+        return (
+            "🚗⚡ ¡Combo 2 en 1 de Volver al Futuro 88 MPH por $150 MXN: Cabina 360° del DeLorean + Video Saludo Personalizado de Marty McFly! 🔥⏳ | "
+            "1️⃣ Tus invitados abren tu link en su celular, entran a la cabina 360° del DeLorean y tocan la pantalla para acelerar hasta 88 MPH (1.21 Gigawatts) saltando por el túnel del tiempo 💥✨ "
+            "2️⃣ ¡Al aterrizar desbloquean el Cuadro de Saludo en Video HD de Marty McFly, los Circuitos del Tiempo, el Mapa GPS y descargan su Placa California VIP antes de confirmar a tu WhatsApp! | "
+            "👉 Pídela y personalízala hoy en: https://dreamcrafters.lat | "
+            "🚗 Juega el demo del DeLorean a 88 MPH: https://dreamcrafters.lat/invitacionvolveralfuturo/index.html | "
+            "💰 Gana el 20% recomendando vía SPEI: https://dreamcrafters.lat/socios | "
+            "⚡ Impulsado por https://talentocontarifa.lat "
+            "#DreamCrafters #VolverAlFuturo #BackToTheFuture #MartyMcFly #DeLorean #InvitacionesDigitales #FiestasInfantiles #TalentoConTarifa"
         )[:2100]
     is_minecraft = "minecraft" in lower_name or "steve" in lower_name
     if is_minecraft:
@@ -186,14 +199,14 @@ def build_dreamcrafters_caption(video_filename: str = "") -> str:
             "#DreamCrafters #Minecraft #MinecraftParty #InvitacionesDigitales #FiestasInfantiles #InvitacionesMinecraft #CumpleañosMinecraft #TalentoConTarifa"
         )[:2100]
     return (
-        "🍄 ¡Combo 2 en 1 por $100 MXN: Invitación Videojuego 3D + Video Saludo Personalizado de Mario! 🎮✨ | "
-        "1️⃣ Tus invitados abren tu link en su celular y atrapan las 3 Super Estrellas en gravedad cero. "
-        "2️⃣ ¡Al ganar desbloquean la invitación con un VIDEO PERSONALIZADO donde Mario saluda al cumpleañero por su nombre, dice cuántos años cumple, la fecha y la dirección del salón! "
-        "✅ Mapa GPS en Google Maps ✅ Confirmación en 1 toque a tu WhatsApp | "
-        "👉 Pídela y personalízala en 1 minuto: https://dreamcrafters.lat | "
-        "🕹️ Juega el demo con video saludo: https://dreamcrafters.lat/invitacionmario/index.html | "
+        f"🪂🦙 ¡Combo 2 en 1 de Fortnite Battle Royale por $150 MXN ({'Edición Brite Bomber' if is_mujer else 'Edición Capitán Jonesy'}): Invitación Videojuego 3D + Video Saludo Personalizado! 🎮🏆 | "
+        "1️⃣ Tus invitados abren tu link en su celular, saltan del Autobús de Batalla y disparan con mira táctica hasta reventar la Piñata Llama 3D en una Grieta Dimensional épica de ¡VICTORIA MAGISTRAL! 💥✨ "
+        "2️⃣ ¡Al ganar desbloquean el Video Saludo, el Mapa GPS del Punto de Caída, la cuenta regresiva de La Tormenta y descargan su propio Pase de Batalla VIP con su nombre antes de confirmar a tu WhatsApp! | "
+        "👉 Pídela y personalízala hoy en: https://dreamcrafters.lat | "
+        "🕹️ Juega el demo con video saludo: https://dreamcrafters.lat/invitacionfortnite/index.html | "
+        "💰 Gana el 20% recomendando vía SPEI: https://dreamcrafters.lat/socios | "
         "⚡ Impulsado por https://talentocontarifa.lat "
-        "#DreamCrafters #SuperMarioGalaxy #InvitacionesDigitales #FiestasInfantiles #InvitacionesMario #CumpleañosMarioBros #VideoSaludoMario #TalentoConTarifa"
+        "#DreamCrafters #Fortnite #FortniteBattleRoyale #CumpleañosFortnite #InvitacionesFortnite #InvitacionesDigitales #FiestasInfantiles #VictoriaMagistral #TalentoConTarifa"
     )[:2100]
 
 
@@ -208,7 +221,23 @@ def upload_to_tiktok_studio(video_path: Path, caption: str) -> dict:
     print(f"\n🎵 [TikTok Studio Local] Conectando a sesión de Chrome para subir {video_path.name} ({size_mb:.2f} MB)...")
 
     with sync_playwright() as p:
-        browser = p.chromium.connect_over_cdp(CDP_URL)
+        try:
+            browser = p.chromium.connect_over_cdp(CDP_URL, timeout=15000)
+        except Exception as e:
+            print(f"⚠️ Puerto CDP 9222 colgado ({e}). Reiniciando Chrome de TikTok Studio automáticamente...")
+            subprocess.run(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-Command",
+                    'Stop-ScheduledTask -TaskName "KraugeTikTokStudioBrowser" -ErrorAction SilentlyContinue; '
+                    'Get-CimInstance Win32_Process | Where-Object { $_.Name -eq "chrome.exe" -and $_.CommandLine -match "9222" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }; '
+                    'Start-Sleep -Seconds 2; Start-ScheduledTask -TaskName "KraugeTikTokStudioBrowser"',
+                ],
+                check=False,
+            )
+            time.sleep(5)
+            browser = p.chromium.connect_over_cdp(CDP_URL, timeout=25000)
         context = browser.contexts[0] if browser.contexts else browser.new_context()
         page = None
         for pg in context.pages:
@@ -399,7 +428,7 @@ def get_latest_successful_run(repo: str, workflow: str | None = None) -> dict | 
     runs = json.loads(out)
     for r in runs:
         wname = (r.get("workflowName") or "").lower()
-        if "pages" in wname or "validar" in wname or "check" in wname:
+        if any(skip in wname for skip in ("pages", "validar", "check", "publicador de talento", "análisis", "radar", "test api", "semanal")):
             continue
         return r
     return None
@@ -441,9 +470,13 @@ def sync_krauge(ledger: dict) -> dict:
 
 
 ALLOWED_DC_VIDEOS = {
-    "01_mario_galaxy.mp4",
+    "01_fortnite_juego_150_hombre.mp4",
     "02_rey_steve_minecraft_gratis.mp4",
-    "03_mario_referidos_20.mp4",
+    "03_fortnite_afiliados_20_hombre.mp4",
+    "04_fortnite_juego_150_mujer.mp4",
+    "05_fortnite_afiliados_20_mujer.mp4",
+    "06_volver_al_futuro_juego_150.mp4",
+    "07_volver_al_futuro_afiliados_20.mp4",
 }
 TCT_NEOBRUTALIST_CUTOFF = "2026-10-21T23:31:22Z"
 COOLDOWN_SECONDS = 45 * 60  # Mínimo 45 minutos entre subidas a TikTok Studio
@@ -563,6 +596,54 @@ def sync_tct(ledger: dict) -> dict:
     return res
 
 
+DC_ROTATION_ORDER = [
+    "06_volver_al_futuro_juego_150.mp4",
+    "07_volver_al_futuro_afiliados_20.mp4",
+    "01_fortnite_juego_150_hombre.mp4",
+    "03_fortnite_afiliados_20_hombre.mp4",
+    "04_fortnite_juego_150_mujer.mp4",
+    "05_fortnite_afiliados_20_mujer.mp4",
+    "02_rey_steve_minecraft_gratis.mp4",
+]
+
+
+def select_dc_video_by_utc_schedule(mp4_files: list[Path], ledger: dict | None = None) -> Path:
+    if ledger and "published_runs" in ledger:
+        dc_runs = [
+            v for v in ledger["published_runs"].values()
+            if isinstance(v, dict) and v.get("channel") == "dreamcrafters" and v.get("video")
+        ]
+        if dc_runs:
+            dc_runs.sort(key=lambda x: x.get("published_at", ""))
+            last_name = Path(dc_runs[-1]["video"]).name
+            ordered = [n for n in DC_ROTATION_ORDER if any(f.name == n for f in mp4_files)]
+            if ordered and last_name in ordered:
+                next_name = ordered[(ordered.index(last_name) + 1) % len(ordered)]
+                for f in mp4_files:
+                    if f.name == next_name:
+                        return f
+    utc_hour = time.gmtime().tm_hour
+    if 12 <= utc_hour < 15:
+        preferred = "06_volver_al_futuro_juego_150.mp4"
+    elif 15 <= utc_hour < 17:
+        preferred = "07_volver_al_futuro_afiliados_20.mp4"
+    elif 17 <= utc_hour < 19:
+        preferred = "01_fortnite_juego_150_hombre.mp4"
+    elif 19 <= utc_hour < 21:
+        preferred = "03_fortnite_afiliados_20_hombre.mp4"
+    elif 21 <= utc_hour < 23:
+        preferred = "04_fortnite_juego_150_mujer.mp4"
+    elif utc_hour >= 23 or utc_hour < 1:
+        preferred = "05_fortnite_afiliados_20_mujer.mp4"
+    else:
+        preferred = "02_rey_steve_minecraft_gratis.mp4"
+    for f in mp4_files:
+        if f.name == preferred:
+            return f
+    slot_index = int(time.time() // (3 * 3600)) % len(mp4_files)
+    return mp4_files[slot_index]
+
+
 def sync_dreamcrafters(ledger: dict, force_video: str | None = None) -> dict:
     if not LOCAL_DREAMCRAFTERS_VIDEOS.exists():
         return {"channel": "dreamcrafters", "status": "no_local_videos_dir"}
@@ -583,9 +664,7 @@ def sync_dreamcrafters(ledger: dict, force_video: str | None = None) -> dict:
         if run_key in ledger["published_runs"]:
             print(f"✅ [DreamCrafters] Run #{run_id} ({latest['createdAt']}) ya está publicado en TikTok.")
             return {"channel": "dreamcrafters", "status": "already_published", "run_id": run_id}
-        # Seleccionar el mismo slot determinístico de 8h (3 turnos diarios) para rotar los 3 videos oficiales cada día
-        slot_index = int(time.time() // (8 * 3600)) % len(mp4_files)
-        chosen = mp4_files[slot_index]
+        chosen = select_dc_video_by_utc_schedule(mp4_files, ledger)
         print(f"🎬 [DreamCrafters] Sincronizando Run #{run_id} con video oficial: {chosen.name}")
 
     caption = build_dreamcrafters_caption(chosen.name)
